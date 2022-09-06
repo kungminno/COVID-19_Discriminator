@@ -14,6 +14,7 @@ import pandas as pd
 import numpy as np
 import librosa
 import librosa.display
+import pylab
 import matplotlib.pyplot as plt
 import cv2
 import os
@@ -28,6 +29,7 @@ import threading
 import pickle
 import sys
 import time
+from pydub import AudioSegment
 
 def load_wav(path):
     return librosa.core.load(path, sr=24000)[0]
@@ -107,7 +109,7 @@ def compute_SNR(x, fs):
 
 # librosa를 사용한 7가지 오디오 특징 추출 및 특징 set 만들기
 def feature_extractor_rec(row):
-    recpath = 'C:/Users/kungm/Desktop/test/custom_input'
+    recpath = 'C:/Users/kungm/Desktop/model/custom_input'
     sr = 24000
 
     name = row[0]
@@ -179,11 +181,12 @@ def feature_extractor_rec(row):
     return Feature_Set_rec, savepath_rec
 
 
-
 class CustomDataset(tf.keras.utils.Sequence):
     def __init__(self, imgfiles, labels, batch_size, target_size=(224, 224), shuffle=False, scale=255, n_classes=1,
                  n_channels=3):
-        self.batch_size = batch_size
+        if len(labels) <=10:
+          self.batch_size = 1
+        else: self.batch_size = batch_size
         self.dim = target_size
         self.labels = labels
         self.imgfiles = imgfiles
@@ -197,17 +200,11 @@ class CustomDataset(tf.keras.utils.Sequence):
 
     def __len__(self):
         # returns the number of batches
-        if len(self.imgfiles) <= 10:
-            return int(len(self.imgfiles))
-        else:
-            int(np.floor(len(self.imgfiles) / self.batch_size))
+        return int(np.floor(len(self.imgfiles) / self.batch_size))
 
     def __getitem__(self, index):
         # returns one batch
-        if len(self.indexes) <= 10:
-            indexes = self.indexes
-        else:
-            indexes = self.indexes[index * self.batch_size:(index + 1) * self.batch_size]
+        indexes = self.indexes[index * self.batch_size:(index + 1) * self.batch_size]
 
         # Generate data
         X, y = self.__data_generation(indexes)
@@ -219,12 +216,8 @@ class CustomDataset(tf.keras.utils.Sequence):
             np.random.shuffle(self.indexes)
 
     def __data_generation(self, list_IDs_temp):
-        if len(self.indexes) <= 10:
-            X = np.empty((len(self.indexes), *self.dim, self.n_channels))
-            y = np.empty(len(self.indexes), dtype=int)
-        else:
-            X = np.empty((self.batch_size, *self.dim, self.n_channels))
-            y = np.empty((self.batch_size), dtype=int)
+        X = np.empty((self.batch_size, *self.dim, self.n_channels))
+        y = np.empty((self.batch_size), dtype=int)
 
         # Generate data
         for i, ID in enumerate(list_IDs_temp):
@@ -243,23 +236,19 @@ class CustomPipeline(tf.keras.utils.Sequence):
     def __init__(self, data_x, data_y, batch_size=48, shuffle=False, n_classes=1):
         self.features = data_x
         self.labels = data_y
-        self.batch_size = 48
+        if len(data_y) <=10:
+          self.batch_size = 1
+        else: self.batch_size = 48
         self.shuffle = shuffle
         self.n_features = self.features.shape[1]  # 36
         self.n_classes = 1
         self.on_epoch_end()
 
     def __len__(self):
-        if len(self.features) <= 10:
-            return int(len(self.features))
-        else:
-            return int(np.floor(len(self.features) / self.batch_size))
+        return int(np.floor(len(self.features) / self.batch_size))
 
     def __getitem__(self, index):
-        if len(self.indexes) <= 10:
-            indexes = self.indexes
-        else:
-            indexes = self.indexes[index * self.batch_size:(index + 1) * self.batch_size]
+        indexes = self.indexes[index * self.batch_size:(index + 1) * self.batch_size]
         X, y = self.__data_generation(indexes)
         return X, y
 
@@ -269,12 +258,8 @@ class CustomPipeline(tf.keras.utils.Sequence):
             np.random.shuffle(self.indexes)
 
     def __data_generation(self, indexes):
-        if len(self.indexes) <= 10:
-            X = np.empty((len(self.indexes), self.n_features))
-            y = np.empty(len(self.indexes), dtype=int)
-        else:
-            X = np.empty((self.batch_size, self.n_features))
-            y = np.empty((self.batch_size), dtype=int)
+        X = np.empty((self.batch_size, self.n_features))
+        y = np.empty((self.batch_size), dtype=int)
 
         for i, ID in enumerate(indexes):
             X[i,] = self.features[ID]
@@ -296,6 +281,7 @@ class TripleInputGenerator(tf.keras.utils.Sequence):
 
         X_batch = [X1_batch, X2_batch]
         return X_batch, Y_batch
+
 
 
 
@@ -322,14 +308,14 @@ def cough_s(wav_path):
     return cough_segments, cough_mask
 
 def mod(cough_segments, addr):
-    MERGM_f = load_model('C:/Users/kungm/Desktop/test/MERGM_len10.h5')
+    MERGM_f = load_model('C:/Users/kungm/Desktop/model/MERGM_len10.h5')
 
     DATA = {}
     DATA['MFCCS'] = {}
     DATA['MEL'] = {}
     DATA['LABELS'] = {}
 
-    with open('C:/Users/kungm/Desktop/test/loaded_data_model2_seg_1041_2480_mfcc13.pickle', 'rb') as af:
+    with open('C:/Users/kungm/Desktop/model/loaded_data_model2_seg_1041_2480_mfcc13.pickle', 'rb') as af:
         # 파일을 열고 닫는 것을 자동으로 처리
         DATA = pickle.load(af)
 
@@ -350,7 +336,7 @@ def mod(cough_segments, addr):
     features_rec = []
     imgpaths_rec = []
 
-    for row in ds_rec.values:
+    for row in tqdm(ds_rec.values):
         feature_set_rec, savepath_rec = feature_extractor_rec(row)
 
         if any(feature_set_rec) is None:
@@ -392,17 +378,19 @@ def mod(cough_segments, addr):
     return MERGM_f.predict(TEST)
 
 def mkfile(addr, result):
-    rec_data_dir = 'C:/Users/kungm/Desktop/test/cough/user_input_p/'
-    wav_dir = 'C:/Users/kungm/Desktop/test/cough/user_input_w/'
+    rec_data_dir = 'C:/Users/kungm/Desktop/model/cough/user_input_p/'
+    wav_dir = 'C:/Users/kungm/Desktop/model/cough/user_input_w/'
+    img_dir = 'C:/Users/kungm/Desktop/model/custom_input/'
 
     path = str(addr[0]) + str(addr[1])
     pcm_path = rec_data_dir + path + ".pcm"
     wav_path = wav_dir + path + ".wav"
+    mfcc_path= img_dir + path + ".png"
 
     with open(pcm_path, "wb") as writer:
         writer.write(result)
 
-    return pcm_path, wav_path
+    return pcm_path, wav_path, mfcc_path
 
 def recv_data(client_sock, addr, client_sockets):
     start = time.time()
@@ -419,14 +407,22 @@ def recv_data(client_sock, addr, client_sockets):
             del result[0:48000]
 
             client_sockets.append(client_sock)
+            #print("참가자 수 : ", len(client_sockets))
 
-            pcm, wav = mkfile(addr, result)
+            #print(f"{addr}가 연결되었습니다.")
+
+            pcm, wav, mfcc = mkfile(addr, result)
 
             pcm2wav(pcm, wav)
+
+            sound = AudioSegment.from_wav(wav)
+            sound = sound.set_channels(1)
+            sound.export(wav, format="wav")
 
             cough_segments, cough_mask = cough_s(wav)
 
             if cough_segments == []:
+                #print('NONE data')
                 client_sock.send('Retry'.encode('utf-8'))
 
                 if client_sock in client_sockets:
@@ -436,8 +432,11 @@ def recv_data(client_sock, addr, client_sockets):
                 return
 
             y_preds_test = mod(cough_segments, addr)
+            y_preds_test = y_preds_test.flatten()
+
 
             if any(y_preds_test) is None:
+                #print('Feature extractor error')
                 client_sock.send('Retry'.encode('utf-8'))
 
                 if client_sock in client_sockets:
@@ -446,13 +445,23 @@ def recv_data(client_sock, addr, client_sockets):
                 client_sock.close()
                 return
 
+            p = sum(y_preds_test) / len(y_preds_test) * 100
+
             preds = [pred for pred in y_preds_test if pred > 0.9]
+            if len(preds) >= 1:
+                p_p = sum(preds) / len(preds) * 100
 
             if (len(y_preds_test) / 2) < len(preds):
-                client_sock.send('positive'.encode('utf-8'))
+                score = round(p_p)
+                positive = 'positive ' + str(score)
+                client_sock.send(positive.encode('utf-8'))
             else:
-                client_sock.send('negative'.encode('utf-8'))
+                score = 100 - round(p)
+                negative = 'negative ' + str(score)
+                client_sock.send(negative.encode('utf-8'))
 
+
+            #print('-----------------------------------------------------------------')
             print('진단 결과를 보냈습니다.')
 
             if client_sock in client_sockets:
@@ -461,17 +470,20 @@ def recv_data(client_sock, addr, client_sockets):
 
             print(f'{addr}와 통신 종료')
             client_sock.close()
+            os.remove(pcm)
+            #os.remove(wav)
+            #os.remove (mfcc)
             finish = time.time()
             print(finish - start,addr)
-            os.remove(wav)
             return
 
         elif len(data) == 0:
-            client_sock.send('Retry'.encode('utf-8'))
+            client_sock.send('Retry'.encode('utf-8'))  # 클라이언트쪽의 리시브 쓰레드 종료하라고..
+            #print('No data from: ', addr)
 
             if client_sock in client_sockets:
                 client_sockets.remove(client_sock)
-            print(f"Disconnected from {addr}")
+            print(f"{addr}와 연결 중단: Disconnecting")
             client_sock.close()
             return
 
@@ -480,7 +492,7 @@ def recv_data(client_sock, addr, client_sockets):
 def main():
     plt.switch_backend('agg')
 
-    host = '117.16.123.50'  #home com:'172.30.1.86'
+    host = '117.16.123.50'
     port = 9999
 
     # 소켓 생성(IP4v)
