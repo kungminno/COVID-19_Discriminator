@@ -38,6 +38,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.nio.ByteBuffer;
+import java.sql.Struct;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 @RequiresApi(api = Build.VERSION_CODES.CUPCAKE)
@@ -45,8 +46,9 @@ public class RecordActivity extends AppCompatActivity {
     public SendData mSendData;
     public PlayData mPlayData;
     public ResetHandler resetHandler = new ResetHandler();
+    public LoadHandler loadHandler = new LoadHandler();
 
-    private static final String IP = "117.16.123.50";//"172.30.1.86";
+    private static final String IP = "117.16.123.50";
     private static final int PORT = 9999;
     private Socket socket;
     private DataOutputStream dos;
@@ -97,8 +99,9 @@ public class RecordActivity extends AppCompatActivity {
 
         startButton.setOnClickListener(v -> {
             if (checkNetworkState(RecordActivity.this)) {
-                Message message = resetHandler.obtainMessage();
-                resetHandler.sendMessage(message);
+                // 녹음 버튼을 누르면 바로 녹음중 화면으로 변경
+                Message reset_message = resetHandler.obtainMessage();
+                resetHandler.sendMessage(reset_message);
 
                 startButton.setEnabled(false);
                 playButton.setEnabled(false);
@@ -185,6 +188,9 @@ public class RecordActivity extends AppCompatActivity {
                     //Log.w("client", "버퍼 생성 성공");
 
                     try {
+                        Message hold_message = loadHandler.obtainMessage();
+                        loadHandler.sendMessage(hold_message);
+
                         while ((byteBuffer.position() + SAMPLING_RATE_IN_HZ) < BUFFER_BYTE_SIZE) {
                             retBufferSize = audioRecord.read(BufferRecord, 0, SAMPLING_RATE_IN_HZ);
                             byteBuffer.put(BufferRecord, 0, retBufferSize);
@@ -208,6 +214,7 @@ public class RecordActivity extends AppCompatActivity {
                     audioRecord.stop();
                     audioRecord.release();
 
+                    input_message = "positive 90";
                     Message msg = handler.obtainMessage();
                     handler.sendMessage(msg);
                 }
@@ -220,22 +227,26 @@ public class RecordActivity extends AppCompatActivity {
         final Handler handler = new Handler() {
             @SuppressLint("SetTextI18n")
             public void handleMessage(@NonNull Message msg) {
-                if (input_message.equalsIgnoreCase("POSITIVE")) {
-                    txtView.setTextColor(Color.parseColor("#EE334E"));
-                    txtView.setText("코로나19 기침소리 판별 결과 양성(Positive) 입니다.\n\n가까운 병원에서 검사를 받아보세요.");
-                    imageView.setImageResource(R.drawable.warning);
-                } else if (input_message.equalsIgnoreCase("NEGATIVE")) {
-                    txtView.setTextColor(Color.parseColor("#00A2E5"));
-                    txtView.setText("코로나19 기침소리 판별 결과 음성(Negative) 입니다.");
-                    imageView.setImageResource(R.drawable.safe);
-                } else if (input_message.equalsIgnoreCase("RETRY")) {
-                    txtView.setTextColor(Color.parseColor("#857C7A"));
-                    txtView.setText("다시 시도해 주세요");
-                    imageView.setImageResource(R.drawable.retry);
-                }
+                if(input_message != null) {
+                    String[] msgArr = input_message.split("\\s");
 
-                startButton.setEnabled(true);
-                playButton.setEnabled(true);
+                    if (msgArr[0].equalsIgnoreCase("POSITIVE")) {
+                        txtView.setTextColor(Color.parseColor("#EE334E"));
+                        txtView.setText("코로나19 기침소리 판별 결과 양성(Positive) 입니다.\n가까운 병원에서 검사를 받아보세요.\n\n예측률 : " + msgArr[1] + "%");
+                        imageView.setImageResource(R.drawable.warning);
+                    } else if (msgArr[0].equalsIgnoreCase("NEGATIVE")) {
+                        txtView.setTextColor(Color.parseColor("#00A2E5"));
+                        txtView.setText("코로나19 기침소리 판별 결과 음성(Negative) 입니다.\n\n예측률 : " + msgArr[1] + "%");
+                        imageView.setImageResource(R.drawable.safe);
+                    } else if (msgArr[0].equalsIgnoreCase("RETRY")) {
+                        txtView.setTextColor(Color.parseColor("#857C7A"));
+                        txtView.setText("다시 시도해 주세요.");
+                        imageView.setImageResource(R.drawable.retry);
+                    }
+
+                    startButton.setEnabled(true);
+                    playButton.setEnabled(true);
+                }
             }
         };
     }
@@ -287,6 +298,17 @@ public class RecordActivity extends AppCompatActivity {
             Glide.with(RecordActivity.this).load(R.raw.recording2).into(imageView);
             txtView.setTextColor(Color.parseColor("#857C7A"));
             txtView.setText("녹음 중...");
+        }
+    }
+
+    class LoadHandler extends Handler {
+        @Override
+        public void handleMessage(Message msg) {
+            super.handleMessage(msg);
+
+            Glide.with(RecordActivity.this).load(R.raw.loading).into(imageView);
+            txtView.setTextColor(Color.parseColor("#857C7A"));
+            txtView.setText("진단 중...");
         }
     }
 }
