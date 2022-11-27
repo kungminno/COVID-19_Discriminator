@@ -49,7 +49,7 @@ public class RecordActivity extends AppCompatActivity {
     public LoadHandler loadHandler = new LoadHandler();
 
     private static final String IP = "117.16.123.50";
-    private static final int PORT = 8888;
+    private static final int PORT = 9999;
     private Socket socket;
     private DataOutputStream dos;
     private DataInputStream dis;
@@ -188,6 +188,9 @@ public class RecordActivity extends AppCompatActivity {
                     //Log.w("client", "버퍼 생성 성공");
 
                     try {
+                        Message hold_message = loadHandler.obtainMessage();
+                        loadHandler.sendMessage(hold_message);
+
                         while ((byteBuffer.position() + SAMPLING_RATE_IN_HZ) < BUFFER_BYTE_SIZE) {
                             retBufferSize = audioRecord.read(BufferRecord, 0, SAMPLING_RATE_IN_HZ);
                             byteBuffer.put(BufferRecord, 0, retBufferSize);
@@ -196,9 +199,6 @@ public class RecordActivity extends AppCompatActivity {
                             dos.flush();
                         }
                         //Log.w("client", "전송 완료");
-
-                        Message load_message = loadHandler.obtainMessage();
-                        loadHandler.sendMessage(load_message);
 
                         byte[] buf = new byte[512];
                         //Log.w("client", "수신 대기 중");
@@ -214,6 +214,7 @@ public class RecordActivity extends AppCompatActivity {
                     audioRecord.stop();
                     audioRecord.release();
 
+                    input_message = "positive 90";
                     Message msg = handler.obtainMessage();
                     handler.sendMessage(msg);
                 }
