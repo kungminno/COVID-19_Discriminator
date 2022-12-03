@@ -188,9 +188,6 @@ public class RecordActivity extends AppCompatActivity {
                     //Log.w("client", "버퍼 생성 성공");
 
                     try {
-                        Message hold_message = loadHandler.obtainMessage();
-                        loadHandler.sendMessage(hold_message);
-
                         while ((byteBuffer.position() + SAMPLING_RATE_IN_HZ) < BUFFER_BYTE_SIZE) {
                             retBufferSize = audioRecord.read(BufferRecord, 0, SAMPLING_RATE_IN_HZ);
                             byteBuffer.put(BufferRecord, 0, retBufferSize);
@@ -199,6 +196,9 @@ public class RecordActivity extends AppCompatActivity {
                             dos.flush();
                         }
                         //Log.w("client", "전송 완료");
+
+                        Message load_message = loadHandler.obtainMessage();
+                        loadHandler.sendMessage(load_message);
 
                         byte[] buf = new byte[512];
                         //Log.w("client", "수신 대기 중");
@@ -214,7 +214,6 @@ public class RecordActivity extends AppCompatActivity {
                     audioRecord.stop();
                     audioRecord.release();
 
-                    input_message = "positive 90";
                     Message msg = handler.obtainMessage();
                     handler.sendMessage(msg);
                 }
@@ -232,11 +231,11 @@ public class RecordActivity extends AppCompatActivity {
 
                     if (msgArr[0].equalsIgnoreCase("POSITIVE")) {
                         txtView.setTextColor(Color.parseColor("#EE334E"));
-                        txtView.setText("코로나19 기침소리 판별 결과 양성(Positive) 입니다.\n가까운 병원에서 검사를 받아보세요.\n\n예측률 : " + msgArr[1] + "%");
+                        txtView.setText("COVID-19 기침소리 판별 결과 양성(Positive) 입니다.\n가까운 병원에서 검사를 받아보세요.\n\n정확도 : " + msgArr[1] + "%");
                         imageView.setImageResource(R.drawable.warning);
                     } else if (msgArr[0].equalsIgnoreCase("NEGATIVE")) {
                         txtView.setTextColor(Color.parseColor("#00A2E5"));
-                        txtView.setText("코로나19 기침소리 판별 결과 음성(Negative) 입니다.\n\n예측률 : " + msgArr[1] + "%");
+                        txtView.setText("COVID-19 기침소리 판별 결과 음성(Negative) 입니다.\n\n정확도 : " + msgArr[1] + "%");
                         imageView.setImageResource(R.drawable.safe);
                     } else if (msgArr[0].equalsIgnoreCase("RETRY")) {
                         txtView.setTextColor(Color.parseColor("#857C7A"));
